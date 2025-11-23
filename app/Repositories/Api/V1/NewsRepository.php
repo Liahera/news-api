@@ -14,6 +14,9 @@ class NewsRepository
         private readonly NewsFilter $newsFilter,
     ) {}
 
+    /**
+     * Get authenticated user's news list with filters & search.
+     */
     public function getUserNewsIndex(User $user, Request $request): LengthAwarePaginator
     {
         $query = News::query()
@@ -26,6 +29,9 @@ class NewsRepository
             ->paginate(20);
     }
 
+    /**
+     * Get public news index (only published) with filters & search.
+     */
     public function getPublicIndex(Request $request): LengthAwarePaginator
     {
         $query = News::query();
@@ -37,8 +43,12 @@ class NewsRepository
             ->paginate(20);
     }
 
+    /**
+     * Get single public news by ID (only published).
+     */
     public function getPublicById(int $id): News
     {
+        /** @var News $news */
         $news = News::query()
             ->where('id', $id)
             ->where('is_published', true)

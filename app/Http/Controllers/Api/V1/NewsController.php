@@ -7,7 +7,6 @@ use App\Http\Requests\Api\V1\News\ChangeNewsStatusRequest;
 use App\Http\Requests\Api\V1\News\StoreNewsRequest;
 use App\Http\Requests\Api\V1\News\UpdateNewsRequest;
 use App\Models\News;
-use App\Repositories\Api\V1\NewsRepository;
 use App\Services\Api\V1\NewsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -16,7 +15,6 @@ class NewsController extends Controller
 {
     public function __construct(
         private readonly NewsService $newsService,
-        private readonly NewsRepository $newsRepository,
     ) {}
 
     /**
@@ -24,8 +22,10 @@ class NewsController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $news = $this->newsRepository
-            ->getUserNewsIndex($request->user(), $request);
+        $news = $this->newsService->getUserNewsIndex(
+            $request->user(),
+            $request
+        );
 
         return response()->json($news);
     }
@@ -50,7 +50,7 @@ class NewsController extends Controller
     {
         $this->authorize('view', $news);
 
-        $news->load('blocks');
+        $news = $this->newsService->show($news);
 
         return response()->json($news);
     }
@@ -62,7 +62,10 @@ class NewsController extends Controller
     {
         $this->authorize('update', $news);
 
-        $updated = $this->newsService->update($news, $request->validated());
+        $updated = $this->newsService->update(
+            $news,
+            $request->validated()
+        );
 
         return response()->json($updated);
     }
@@ -74,9 +77,10 @@ class NewsController extends Controller
     {
         $this->authorize('update', $news);
 
-        $data = $request->validated();
-
-        $updated = $this->newsService->changeStatus($news, $data['is_published']);
+        $updated = $this->newsService->changeStatus(
+            $news,
+            $request->validated()['is_published']
+        );
 
         return response()->json($updated);
     }
@@ -86,7 +90,7 @@ class NewsController extends Controller
      */
     public function publicIndex(Request $request): JsonResponse
     {
-        $news = $this->newsRepository->getPublicIndex($request);
+        $news = $this->newsService->getPublicIndex($request);
 
         return response()->json($news);
     }
@@ -96,7 +100,7 @@ class NewsController extends Controller
      */
     public function publicShow(int $id): JsonResponse
     {
-        $news = $this->newsRepository->getPublicById($id);
+        $news = $this->newsService->getPublicNews($id);
 
         return response()->json($news);
     }
