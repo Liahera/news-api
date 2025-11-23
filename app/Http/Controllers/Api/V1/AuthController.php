@@ -6,28 +6,25 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\V1\Auth\LoginRequest;
 use App\Http\Requests\Api\V1\Auth\RegisterRequest;
 use App\Http\Requests\Api\V1\Auth\UpdateProfileRequest;
-use App\Models\User;
+use App\Services\Api\V1\AuthService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
+    public function __construct(
+        private readonly AuthService $authService,
+    ) {}
+
     /**
      * Handle user registration.
      */
     public function register(RegisterRequest $request): JsonResponse
     {
-        $data = $request->validated();
-
-        $user = User::create([
-            'name'     => $data['name'],
-            'email'    => $data['email'],
-            'password' => $data['password']
-        ]);
+        $user = $this->authService->register($request->validated());
 
         return response()->json([
-            'user'  => $user
+            'user' => $user,
         ], 201);
     }
 
@@ -36,24 +33,15 @@ class AuthController extends Controller
      */
     public function login(LoginRequest $request): JsonResponse
     {
-        $data = $request->validated();
+        $result = $this->authService->attemptLogin($request->validated());
 
-        $user = User::query()->where('email', $data['email'])->first();
-
-        if ($user === null || !Hash::check($data['password'], $user->password)) {
+        if ($result === null) {
             return response()->json([
                 'message' => 'Wrong email or password',
             ], 401);
         }
 
-        $user->tokens()->delete();
-
-        $token = $user->createToken("Token of user: {$user->name}")->plainTextToken;
-
-        return response()->json([
-            'user'  => $user,
-            'token' => $token,
-        ]);
+        return response()->json($result);
     }
 
     /**
@@ -69,13 +57,12 @@ class AuthController extends Controller
      */
     public function update(UpdateProfileRequest $request): JsonResponse
     {
-        $user = $request->user();
-        $data = $request->validated();
+        $user = $this->authService->updateProfile(
+            $request->user(),
+            $request->validated()
+        );
 
-        $user->fill($data);
-        $user->save();
-
-        return response()->json($user->fresh());
+        return response()->json($user);
     }
 
     /**
@@ -85,8 +72,8 @@ class AuthController extends Controller
     {
         $user = $request->user();
 
-        if ($user !== null && $user->currentAccessToken() !== null) {
-            $user->currentAccessToken()->delete();
+        if ($user !== null) {
+            $this->authService->logout($user);
         }
 
         return response()->json([

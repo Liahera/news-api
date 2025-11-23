@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers\Api\V1;
 
-use App\Filters\Api\V1\NewsFilter;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Api\V1\News\ChangeNewsStatusRequest;
 use App\Http\Requests\Api\V1\News\StoreNewsRequest;
 use App\Http\Requests\Api\V1\News\UpdateNewsRequest;
 use App\Models\News;
+use App\Repositories\Api\V1\NewsRepository;
 use App\Services\Api\V1\NewsService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -15,7 +16,7 @@ class NewsController extends Controller
 {
     public function __construct(
         private readonly NewsService $newsService,
-        private readonly NewsFilter $newsFilter,
+        private readonly NewsRepository $newsRepository,
     ) {}
 
     /**
@@ -23,14 +24,8 @@ class NewsController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        $user = $request->user();
-
-        $query = News::query()
-            ->where('author_id', $user->id);
-
-        $this->newsFilter->applyForOwner($query, $request);
-
-        $news = $query->orderByDesc('created_at')->paginate(20);
+        $news = $this->newsRepository
+            ->getUserNewsIndex($request->user(), $request);
 
         return response()->json($news);
     }
@@ -40,7 +35,10 @@ class NewsController extends Controller
      */
     public function store(StoreNewsRequest $request): JsonResponse
     {
-        $news = $this->newsService->create($request->user(), $request->validated());
+        $news = $this->newsService->create(
+            $request->user(),
+            $request->validated()
+        );
 
         return response()->json($news, 201);
     }
@@ -72,13 +70,11 @@ class NewsController extends Controller
     /**
      * Change the publication status of a news item (hide/show).
      */
-    public function changeStatus(Request $request, News $news): JsonResponse
+    public function changeStatus(ChangeNewsStatusRequest $request, News $news): JsonResponse
     {
         $this->authorize('update', $news);
 
-        $data = $request->validate([
-            'is_published' => ['required', 'boolean'],
-        ]);
+        $data = $request->validated();
 
         $updated = $this->newsService->changeStatus($news, $data['is_published']);
 
@@ -90,11 +86,7 @@ class NewsController extends Controller
      */
     public function publicIndex(Request $request): JsonResponse
     {
-        $query = News::query();
-
-        $this->newsFilter->applyForPublic($query, $request);
-
-        $news = $query->orderByDesc('published_at')->paginate(20);
+        $news = $this->newsRepository->getPublicIndex($request);
 
         return response()->json($news);
     }
@@ -104,11 +96,7 @@ class NewsController extends Controller
      */
     public function publicShow(int $id): JsonResponse
     {
-        $news = News::query()
-            ->where('id', $id)
-            ->where('is_published', true)
-            ->with(['blocks', 'author'])
-            ->firstOrFail();
+        $news = $this->newsRepository->getPublicById($id);
 
         return response()->json($news);
     }
